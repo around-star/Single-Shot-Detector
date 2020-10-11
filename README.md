@@ -9,3 +9,5 @@ Implementation of [Single Shot Detector](https://arxiv.org/pdf/1512.02325.pdf) i
 - ```utils.py``` : Contains encoding and decoding funtions. The encoding function encodes the training label in a format similar to network output. The decoding function turns back the network output in the label format.
 - ```train.py``` : Performs the training of the model.
 - ```predict.py``` : Tests the trained model.
+
+**Training is done on [PASCAL VOC](https://www.kaggle.com/huanghanchina/pascal-voc-2012) dataset.**
