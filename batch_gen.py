@@ -35,10 +35,10 @@ class Batch_Generator:
                 if (not class_name in classes) : continue
 
                 class_id = classes.index(class_name)
-                xmin = int (obj.find('bndbox').findtext('xmin'))
-                ymin = int (obj.find('bndbox').findtext('ymin'))
-                xmax = int (obj.find('bndbox').findtext('xmax'))
-                ymax = int (obj.find('bndbox').findtext('ymax'))
+                xmin = float (obj.find('bndbox').findtext('xmin'))
+                ymin = float (obj.find('bndbox').findtext('ymin'))
+                xmax = float (obj.find('bndbox').findtext('xmax'))
+                ymax = float (obj.find('bndbox').findtext('ymax'))
 
                 items = {
                         'class_id' : class_id,
