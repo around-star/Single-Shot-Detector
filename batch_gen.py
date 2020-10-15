@@ -8,7 +8,7 @@ class Batch_Generator:
 
     def __init__(self):
         self.labels = []
-        self.filenames = []
+        self.x = []
         self.image_ids = []
 
     def parse_xml(self, annot_dirs, img_dirs, image_sets, classes):
@@ -21,7 +21,9 @@ class Batch_Generator:
 
         for image_id in self.image_ids:
             filename = image_id + '.jpg'
-            self.filenames.append(os.path.join(img_dirs, filename))
+            img = cv2.imread(os.path.join(img_dirs, filename))
+            height, width, _ = np.array(img).shape
+            self.x.append(cv2.resize(img, (300, 300)))
 
             
             tree = et.parse(os.path.join(annot_dirs, image_id + '.xml'))
@@ -35,10 +37,10 @@ class Batch_Generator:
                 if (not class_name in classes) : continue
 
                 class_id = classes.index(class_name)
-                xmin = float (obj.find('bndbox').findtext('xmin'))
-                ymin = float (obj.find('bndbox').findtext('ymin'))
-                xmax = float (obj.find('bndbox').findtext('xmax'))
-                ymax = float (obj.find('bndbox').findtext('ymax'))
+                xmin = (float (obj.find('bndbox').findtext('xmin')) * 300) // width
+                ymin = (float (obj.find('bndbox').findtext('ymin')) * 300) // height 
+                xmax = (float (obj.find('bndbox').findtext('xmax')) * 300) // width 
+                ymax = (float (obj.find('bndbox').findtext('ymax')) * 300) // height
 
                 items = {
                         'class_id' : class_id,
@@ -53,11 +55,10 @@ class Batch_Generator:
                 boxes.append(box)
 
             self.labels.append(boxes)
-        return self.labels
-
+        
         
     def total_samples(self):
-        return len(self.filenames)
+        return len(self.x)
 
 
 
@@ -69,33 +70,24 @@ class Batch_Generator:
     
             batch_x, batch_y = [], []
 
-            if (current + batch_size >= len(self.filenames)):
+            if (current + batch_size >= len(self.x)):
                 current = 0
 
-            self.filenames, self.labels, self.image_ids = sklearn.utils.shuffle(self.filenames, self.labels, self.image_ids)
+            self.x, self.labels, self.image_ids = sklearn.utils.shuffle(self.x, self.labels, self.image_ids)
 
             batch_y = np.array(self.labels[current : current + batch_size])
 
 
-            batch_filenames = self.filenames[current : current + batch_size]
+            batch_x = self.x[current : current + batch_size]
 
-            for filename in batch_filenames :
-                batch_x.append(cv2.resize(cv2.imread(filename), (300, 300)))
+            
 
 
             
             
             batch_x = np.array(batch_x)
-            elements = np.reshape(batch_x, [-1])
-            total = np.sum(elements)
-            
-            mean = total/len(elements)
-
-            var = np.sum(np.square(elements - mean))
-
-            sd = np.sqrt(var)
-
-            batch_x = (batch_x - mean) / sd
+           
+            batch_x = batch_x / 255.0
 
             current += batch_size
 
