@@ -48,7 +48,7 @@ def compute_loss(y_true, y_pred, neg_pos_ratio = 3, alpha = 1):
 
     loc_loss = tf.reduce_sum(localization_loss * positives, axis =-1)
 
-    total_loss = tf.reduce_sum(3 * class_loss + alpha * loc_loss) / tf.maximum(1.0, n_positive)
+    total_loss = tf.reduce_sum(class_loss + alpha * loc_loss) / tf.maximum(1.0, n_positive)
 
     total_loss *= tf.cast(batch_size, tf.float32)
 
