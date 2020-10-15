@@ -229,11 +229,11 @@ class SSDBoxEncoder:
             y_encoded[i,background_class_indices,0] = 1
 
             
-            y_encoded[:,:,-4] = (y_encoded[:,:,-4] - y_encode_template[:,:,-4]) / y_encode_template[:,:,-2] # (cx(gt) - cx(anchor)) / w(anchor)
-            y_encoded[:,:,-3] = (y_encoded[:,:,-3] - y_encode_template[:,:,-3]) / y_encode_template[:,:,-1] # (cy(gt) - cy(anchor)) / h(anchor)
+        y_encoded[:,:,-4] = (y_encoded[:,:,-4] - y_encode_template[:,:,-4]) / y_encode_template[:,:,-2] # (cx(gt) - cx(anchor)) / w(anchor)
+        y_encoded[:,:,-3] = (y_encoded[:,:,-3] - y_encode_template[:,:,-3]) / y_encode_template[:,:,-1] # (cy(gt) - cy(anchor)) / h(anchor)
 
-            y_encoded[:,:,-2] = np.log(y_encoded[:,:,-2] / y_encode_template[:,:,-2]) # log (w(gt) / w(anchor))
-            y_encoded[:,:,-1] = np.log(y_encoded[:,:,-1] / y_encode_template[:,:,-1]) # log (h(gt) / h(anchor))
+        y_encoded[:,:,-2] = np.log(y_encoded[:,:,-2] / y_encode_template[:,:,-2]) # log (w(gt) / w(anchor))
+        y_encoded[:,:,-1] = np.log(y_encoded[:,:,-1] / y_encode_template[:,:,-1]) # log (h(gt) / h(anchor))
 
         
         return y_encoded
