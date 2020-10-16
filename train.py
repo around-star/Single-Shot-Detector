@@ -6,6 +6,7 @@ from batch_gen import Batch_Generator
 from utils import SSDBoxEncoder
 from loss import compute_loss
 
+
 image_height = 300
 image_width = 300
 image_channels = 3
@@ -33,9 +34,9 @@ model.load_weights(weights, by_name = True)
 
 
 
-adam = tf.keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=5e-04)
+optimizer = tf.keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=5e-04)
 
-model.compile(optimizer = adam, loss = compute_loss)
+
 
 VOC_annotations_dir = "VOC2012/Annotations"
 VOC_images_dir = "VOC2012/JPEGImages"
@@ -49,6 +50,8 @@ classes = ['background',
            'chair', 'cow', 'diningtable', 'dog',
            'horse', 'motorbike', 'person', 'pottedplant',
            'sheep', 'sofa', 'train', 'tvmonitor']
+
+VOC_image_sets_dir = [VOC_image_sets_train, VOC_image_sets_val, VOC_image_sets_trainval]
 
 train.parse_xml(VOC_annotations_dir, VOC_images_dir, VOC_image_sets_train, classes)
 
@@ -64,17 +67,29 @@ encoder = SSDBoxEncoder(image_height, image_width, n_classes, predictor_sizes, s
 
 n_train_samples = train.total_samples()
 
-batch_size = 32
+batch_size = 10
 
-train_generator =  train.generate(ssd_box_encoder=encoder, train=True)
-
-
-epochs = 10
-
-history = model.fit_generator(generator = train_generator,
-                             steps_per_epoch = np.ceil(n_train_samples/batch_size),
-                              epochs = epochs)
-
+train_generator =  train.generate(batch_size = batch_size, ssd_box_encoder=encoder,  train=True)
 model_name = 'ssd300'
-model.save('{}.h5'.format(model_name))
-model.save_weights('{}_weights.h5'.format(model_name))
+
+
+epochs = 1
+
+for epoch in range(epochs):
+    for steps in range(int (np.ceil(n_train_samples/batch_size))):
+        data = next(train_generator)
+        x_batch = data[0]
+        y_true = data[1]
+        
+        with tf.GradientTape() as tape:
+            y_pred = model(x_batch)
+            loss = compute_loss(y_true, y_pred)
+            print('Epoch : {} , Step : {} , Loss : {} '.format(epoch, steps, loss))
+
+        grads = tape.gradient(loss, model.variables)
+
+        optimizer.apply_gradients(zip(grads, model.variables))
+
+        if steps % 25 == 0:
+
+            model.save_weights('weights/{}_step_{}_weights.h5'.format(model_name, steps))
