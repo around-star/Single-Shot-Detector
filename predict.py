@@ -24,7 +24,7 @@ normalize_coords = True
 n_boxes = [len(box) for box in aspect_ratios]
 
 model = ssd300.ssd((image_height, image_width, image_channels), n_classes, n_boxes)
-model.load_weights('ssd300_weights.h5')
+model.load_weights('weights/ssd300_step_100_weights.h5')
 
 classes = ['background',
            'aeroplane', 'bicycle', 'bird', 'boat',
@@ -57,19 +57,17 @@ X = np.array(X)
 X = np.reshape(X, (1, image_height, image_width, image_channels))
 y_pred = model.predict(X)
 
-y_pred_decoded = encoder.decode_y(y_pred, confidence_thresh = 0.5, iou_threshold = 0.4, top_k = 200, normalize_coords = True,
+y_pred_decoded = encoder.decode_y(y_pred, confidence_thresh = 0.3, iou_threshold = 0.4, top_k = 200, normalize_coords = True,
                                  img_height = image_height, img_width = image_width)
 
 X = np.reshape(X, (image_height, image_width, image_channels)) * 255
 for boxes in y_pred_decoded[0]:
-    xmin = boxes[-4]
-    ymin = boxes[-3]
-    xmax = boxes[-2]
-    ymax = boxes[-1]
+    xmin = int (boxes[-4])
+    ymin = int (boxes[-3])
+    xmax = int (boxes[-2])
+    ymax = int (boxes[-1])
     label = classes[int (boxes[0])]
-    print(label)
     cv2.rectangle(X, (xmin, ymin), (xmax, ymax),(20, 220, 50))
     cv2.putText(X, label, (xmin, ymin), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255))
 
 cv2.imwrite('result.jpg', X)
-
