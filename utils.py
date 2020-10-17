@@ -78,10 +78,8 @@ class SSDBoxEncoder:
         self.max_scale = max_scale
         self.aspect_ratios = aspect_ratios_per_layer
         
-        if scales == None :
-            self.scales = np.linspace(self.min_scale, self.max_scale, len(self.predictor_sizes)+1)
-        else :
-            self.scales = scales
+
+        self.scales = scales
        
 
 
@@ -98,26 +96,26 @@ class SSDBoxEncoder:
             self.n_boxes.append(len(aspect_ratios))
 
         self.boxes_list = [] # This will contain the anchor boxes for each predicotr layer.
-
-        self.wh_list_diag = [] 
+        self.steps_diag = []
+        self.wh_list_diag = []
+        self.offsets_diag = []
+        self.centers_diag = []
 
         for i in range(len(self.predictor_sizes)):
             boxes, center, wh, step, offset = self.generate_anchor_boxes_for_layer(feature_map_size=self.predictor_sizes[i],
                                                                                    aspect_ratios=self.aspect_ratios[i],
-                                                                                   this_scale=self.scales[i],
-                                                                                   next_scale=self.scales[i+1],
-                                                                                   )
+                                                                                   this_scale=self.scales[i])
             self.boxes_list.append(boxes)
             self.wh_list_diag.append(wh)
             self.steps_diag.append(step)
             self.offsets_diag.append(offset)
             self.centers_diag.append(center)
+        
 
     def generate_anchor_boxes_for_layer(self,
                                         feature_map_size,
                                         aspect_ratios,
-                                        this_scale,
-                                        next_scale):
+                                        this_scale):
         
         
 
@@ -207,17 +205,23 @@ class SSDBoxEncoder:
                     true_box[2] /= self.img_height
                     true_box[4] /= self.img_height 
 
-                true_box = convert_coordinates(np.array(true_box), start_index=1, conversion='corners2centroids')
+                true_box = convert_coordinates(np.array(true_box, dtype = np.float32), start_index=1, conversion='corners2centroids')
+                
+                similarities = iou(y_encode_template[i,:,-4:], np.array(true_box[1:]))
 
-                similarities = iou(y_encode_template[i,:,-4:], np.array(true_box[1:])) 
-                negative_boxes[similarities >= self.neg_iou_threshold] = 0 
-                similarities *= available_boxes 
+                for indices in range(len(similarities)):
+                    if similarities[indices] >= self.neg_iou_threshold : negative_boxes[indices] = 0
+ 
+                similarities *= available_boxes
                 available_and_thresh_met = np.copy(similarities)
-                available_and_thresh_met[available_and_thresh_met < self.pos_iou_threshold] = 0 
+                for indices in range(len(similarities)):
+                    if available_and_thresh_met[indices] < self.pos_iou_threshold : available_and_thresh_met[indices] = 0 
+ 
                 assign_indices = np.nonzero(available_and_thresh_met)[0] 
                 if len(assign_indices) > 0: # If we have any matches
-                    y_encoded[i,assign_indices,:] = np.concatenate((class_vector[int(true_box[0])], true_box[1:]), axis=0) 
-                    available_boxes[assign_indices] = 0 
+                    for indices in assign_indices:
+                        y_encoded[i,indices,:] = np.concatenate((class_vector[int(true_box[0])], true_box[1:]), axis=0) 
+                        available_boxes[indices] = 0 
                 else: # If we don't have any matches
                     best_match_index = np.argmax(similarities) # Get the index of the best iou match out of all available boxes
                     
@@ -230,7 +234,7 @@ class SSDBoxEncoder:
 
             
         y_encoded[:,:,-4] = (y_encoded[:,:,-4] - y_encode_template[:,:,-4]) / y_encode_template[:,:,-2] # (cx(gt) - cx(anchor)) / w(anchor)
-        y_encoded[:,:,-3] = (y_encoded[:,:,-3] - y_encode_template[:,:,-3]) / y_encode_template[:,:,-1] # (cy(gt) - cy(anchor)) / h(anchor)
+        y_encoded[:,:,-3] = (y_encoded[:,:,-3] - y_encode_template[:,:,-3]) / y_encode_template[:,:,-1]# (cy(gt) - cy(anchor)) / h(anchor)
 
         y_encoded[:,:,-2] = np.log(y_encoded[:,:,-2] / y_encode_template[:,:,-2]) # log (w(gt) / w(anchor))
         y_encoded[:,:,-1] = np.log(y_encoded[:,:,-1] / y_encode_template[:,:,-1]) # log (h(gt) / h(anchor))
@@ -252,7 +256,7 @@ class SSDBoxEncoder:
         y_pred_decoded[:,:,-4] = (y_pred[:,:,-4] * y_encode_template[:,:,-2]) + y_encode_template[:,:,-4] # cx of gt
         y_pred_decoded[:,:,-3] = (y_pred[:,:,-3] * y_encode_template[:,:,-1]) + y_encode_template[:,:,-3] # cy of gt
 
-        y_pred_decoded = convert_coordinates(y_pred_decoded, start_index=-4, conversion='centroids2corners')
+        y_pred_decoded = convert_coordinates(y_pred_decoded, start_index = -4, conversion='centroids2corners')
 
         if normalize_coords :
             y_pred_decoded[:,:,-4] *= img_width
@@ -264,21 +268,27 @@ class SSDBoxEncoder:
 
         for batch_item in y_pred_decoded:
             pred = []
+            
             for class_id in range(1, self.n_classes):
                 single_class = batch_item[:,[class_id, -4, -3, -2, -1]]
+            
                 threshold_met = single_class[single_class[:,0] > confidence_thresh]
+                
                 if threshold_met.shape[0] > 0:
+                    
                     maxima = _greedy_nms(threshold_met, iou_threshold=iou_threshold) 
                     maxima_output = np.zeros((maxima.shape[0], maxima.shape[1] + 1)) # Expand the last dimension by one element to have room for the class ID. This is now an arrray of shape `[n_boxes, 6]`
-                    maxima_output[:,0] = class_id # Write the class ID to the first column...
-                    maxima_output[:,1:] = maxima # ...and write the maxima to the other columns...
+                    maxima_output[:,0] = class_id # class ID to the first column
+                    maxima_output[:,1:] = maxima # the maxima to the other columns
                     pred.append(maxima_output)
 
-            if pred: # If there are any predictions left after confidence-thresholding...
+            
+            if pred: # If there are any predictions left after confidence-thresholding
+                
                 pred = np.concatenate(pred, axis=0)
-                if pred.shape[0] > top_k: # If we have more than `top_k` results left at this point, otherwise there is nothing to filter,...
+                if pred.shape[0] > top_k: # If we have more than `top_k` results left at this point, otherwise there is nothing to filter,
                     top_k_indices = np.argpartition(pred[:,1], kth=pred.shape[0]-top_k, axis=0)[pred.shape[0]-top_k:] # ...get the indices of the `top_k` highest-score maxima...
-                    pred = pred[top_k_indices] # ...and keep only those entries of `pred`...
+                    pred = pred[top_k_indices] # keep only those entries of `pred`
             y_pred.append(pred) 
 
         return y_pred
